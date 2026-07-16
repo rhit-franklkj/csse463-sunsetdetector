@@ -52,7 +52,7 @@ function featureVector = featureExtract(img, nBlocks)
     end
 
     % And now it's actually a vector 
-    featureVector = permute(featureVector, [3, 1, 2]);
+    featureVector = permute(featureVector, [3, 2, 1]);
     featureVector = reshape(featureVector, [294, 1]); 
 end
 
