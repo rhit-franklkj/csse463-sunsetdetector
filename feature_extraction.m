@@ -1,5 +1,10 @@
 %% Feature Extraction
 
+% Given the folders of the images, chop each image into blocks, calculate
+% the mean and std of those blocks, then throw them in a matrix. 
+
+% Each row represents 1 image. 
+
 imageDatastoreReader(imageDatastore("images\train\nonsunset\"), "features\train_nonsunset.csv"); 
 imageDatastoreReader(imageDatastore("images\train\sunset\"), "features\train_sunset.csv");
 
