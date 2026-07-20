@@ -38,7 +38,7 @@ disp_stat("Percent Support Vectors:", pct_sv);
 
 % Predict on the test set 
 [pred, dist] = predict(net, X_test); 
-% analyze_performance(pred, dist, y_test);
+analyze_performance(pred, dist, y_test);
 
 find_example_images(pred, dist(:, 2), y_test); 
 
@@ -182,12 +182,11 @@ end
 function find_example_images(pred, dist, y_test)
     % Y_test has 500 nonsunsets then 498 sunsets in that order 
     y_test_nonsunset = y_test(1:500);
-    y_test_sunset = y_test(500:size(y_test,1));
+    y_test_sunset = y_test(501:size(y_test,1));
     
     nonsunset = imageDatastore("images\test\nonsunset"); 
     sunset = imageDatastore("images\test\sunset\"); 
 
-    dist 
     min_tn_idx = 1; 
     max_tn_idx = 1; 
     min_tn_dist = max(dist); 
@@ -206,7 +205,7 @@ function find_example_images(pred, dist, y_test)
     min_fn_idx = 1; 
     max_fn_idx = 1; 
     min_fn_dist = max(dist); 
-    max_fn_dist = 0; 
+    max_fn_dist = min(dist); 
 
     % Nonsunsets 
     for i = 1:500      
@@ -272,54 +271,54 @@ function find_example_images(pred, dist, y_test)
 
     figure(3); 
 
-    subplot(2, 4, 1); 
-    hold on; 
-    title(sprintf("TP Distance = %.2f", max_tp_dist)); 
-    imshow(readimage(sunset, max_tp_idx)); 
-    hold off;
+    % subplot(2, 2, 1); 
+    % hold on; 
+    % title(sprintf("TP Distance = %.2f", max_tp_dist)); 
+    % imshow(readimage(sunset, max_tp_idx)); 
+    % hold off;
+    % 
+    % subplot(2, 2, 2); 
+    % hold on; 
+    % title(sprintf("TP Distance = %.2f", min_tp_dist)); 
+    % imshow(readimage(sunset, min_tp_idx)); 
+    % hold off; 
 
-    subplot(2, 4, 2); 
-    hold on; 
-    title(sprintf("TP Distance = %.2f", min_tp_dist)); 
-    imshow(readimage(sunset, min_tp_idx)); 
-    hold off; 
-
-    subplot(2, 4, 3); 
+    subplot(2, 2, 1); 
     hold on; 
     title(sprintf("FN Distance = %.2f", min_fn_dist)); 
     imshow(readimage(sunset, min_fn_idx)); 
     hold off; 
 
-    subplot(2, 4, 4); 
+    subplot(2, 2, 2); 
     hold on; 
     title(sprintf("FN Distance = %.2f", max_fn_dist)); 
-    imshow(readimage(sunset, max_fn_idx)); 
+    imshow(readimage(sunset, max_fn_idx));
     hold off; 
-
-    subplot(2, 4, 5); 
-    hold on; 
-    title(sprintf("FP Distance = %.2f", max_fp_dist)); 
-    imshow(readimage(nonsunset, max_fp_idx)); 
-    hold off; 
-
-
-    subplot(2, 4, 6); 
-    hold on; 
-    title(sprintf("FP Distance = %.2f", min_fp_dist)); 
-    imshow(readimage(nonsunset, min_fp_idx)); 
-    hold off; 
-
-    subplot(2, 4, 7); 
-    hold on; 
-    title(sprintf("TN Distance = %.2f", max_tn_dist)); 
-    imshow(readimage(nonsunset, max_tn_idx)); 
-    hold off;
-
-    subplot(2, 4, 8); 
-    hold on; 
-    title(sprintf("TN Distance = %.2f", min_tn_dist)); 
-    imshow(readimage(nonsunset, min_tn_idx)); 
-    hold off; 
+    % 
+    % subplot(2, 2, 1); 
+    % hold on; 
+    % title(sprintf("FP Distance = %.2f", max_fp_dist)); 
+    % imshow(readimage(nonsunset, max_fp_idx)); 
+    % hold off; 
+    % 
+    % 
+    % subplot(2, 2, 1); 
+    % hold on; 
+    % title(sprintf("FP Distance = %.2f", min_fp_dist)); 
+    % imshow(readimage(nonsunset, min_fp_idx)); 
+    % hold off; 
+    % 
+    % subplot(2, 2, 1); 
+    % hold on; 
+    % title(sprintf("TN Distance = %.2f", max_tn_dist)); 
+    % imshow(readimage(nonsunset, max_tn_idx)); 
+    % hold off;
+    % 
+    % subplot(2, 2, 2); 
+    % hold on; 
+    % title(sprintf("TN Distance = %.2f", min_tn_dist)); 
+    % imshow(readimage(nonsunset, min_tn_idx)); 
+    % hold off; 
 
 
 end
