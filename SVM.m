@@ -89,13 +89,16 @@ for i = 1:size(C_grid, 2) % iterate over the values of C
         end
         % Divide running total by number of folds and save it to the grid 
         acc_grid(i, j) = acc_sum / n_folds; 
-        fprintf("C =  %d, sigma = %d, accuracy = %d\n", C_grid(1, i), sigma_grid(1, j), acc_sum / n_folds); 
+        fprintf("C =  %d, sigma = %d, accuracy = %.4f\n", C_grid(1, i), sigma_grid(1, j), acc_sum / n_folds); 
 
     end
 end
 
 figure(1); 
-surf(acc_grid); % okay fine I suppose that's cooler than matplotlib
+size(C_grid)
+size(sigma_grid)
+size(acc_grid)
+surf(sigma_grid, C_grid, acc_grid); % okay fine I suppose that's cooler than matplotlib
 ylabel("Box Parameter Index"); 
 xlabel("Kernel Scale Index"); 
 zlabel("Accuracy"); 
