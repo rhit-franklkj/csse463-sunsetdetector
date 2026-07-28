@@ -1,5 +1,8 @@
 % Training the SVM 
 
+rng(0); 
+RUN_GRID_SEARCH = false; 
+
 % Load in the image data 
 test_nonsunset = readmatrix("features\test_nonsunset.csv"); 
 test_sunset = readmatrix("features\test_sunset.csv"); 
@@ -22,11 +25,14 @@ y_test= cat(1, ones(size(test_nonsunset, 1), 1) * -1, ones(size(test_sunset, 1),
 
 C_range = 1:1:12;
 sigma_range = 15:1:25; 
-[C, sigma] = GridSearchCV(X_train, y_train, C_range, sigma_range); 
 
-% Hyperparameters for ease of rerunning 
-% C = 3;
-% sigma = 17; 
+if RUN_GRID_SEARCH
+    [C, sigma] = GridSearchCV(X_train, y_train, C_range, sigma_range); 
+else
+    % Hyperparameters for ease of rerunning 
+    C = 3;
+    sigma = 17; 
+end
 
 disp_stat("Best Box Constraint:", C); 
 disp_stat("Best Kernel Scale:", sigma); 
@@ -40,10 +46,19 @@ disp_stat("Percent Support Vectors:", pct_sv);
 
 % Predict on the test set 
 [pred, dist] = predict(net, X_test); 
-analyze_performance(pred, dist, y_test);
+
+posCol = find(net.ClassNames == 1); 
+sunsetScore = dist(:, posCol); 
+
+if ~exist('results', 'dir')
+    mkdir('results'); 
+end
+save('results/lst_svm_results.mat', 'sunsetScore', 'y_test', 'pred', 'C', 'sigma', 'pct_sv'); 
+
+analyze_performance(pred, sunsetScore, y_test);
 
 % Find the nearest and farthest images from the margin 
-find_example_images(pred, dist(:, 2), y_test); 
+find_example_images(pred, sunsetScore, y_test); 
 
 function [best_C, best_sigma] = GridSearchCV(X_train, y_train, C_grid, sigma_grid)
 n_folds = 5; 
@@ -60,11 +75,13 @@ X_train = permute(X_train, [2,1,3]);
 y_train = reshape(y_train, int64(size(y_train, 1) / n_folds), 1, n_folds); 
 
 acc_grid = zeros(size(C_grid, 2), size(sigma_grid, 2)); 
+sv_grid = zeros(size(C_grid, 2), size(sigma_grid, 2)); 
 
 for i = 1:size(C_grid, 2) % iterate over the values of C 
     for j = 1:size(sigma_grid, 2)% iterate over the values of sigma 
 
         acc_sum = 0; 
+        sv_sum = 0; 
 
         for k = 1:n_folds % 5-fold cross validation
 
@@ -85,24 +102,32 @@ for i = 1:size(C_grid, 2) % iterate over the values of C
 
             % Add validation accuracy to running total 
             acc_sum = acc_sum + (sum(sum(pred == y_valid_fold)) / size(y_valid_fold, 1));
+            sv_sum = sv_sum + (sum(net.IsSupportVector) / size(X_train_folds, 1)); 
 
         end
         % Divide running total by number of folds and save it to the grid 
         acc_grid(i, j) = acc_sum / n_folds; 
-        fprintf("C =  %d, sigma = %d, accuracy = %.4f\n", C_grid(1, i), sigma_grid(1, j), acc_sum / n_folds); 
+        sv_grid(i, j) = sv_sum / n_folds; 
+        fprintf("C =  %d, sigma = %d, accuracy = %.4f, support vectors = %.4f\n", C_grid(1, i), sigma_grid(1, j), acc_sum / n_folds, sv_sum / n_folds); 
 
     end
 end
 
 figure(1); 
-size(C_grid)
-size(sigma_grid)
-size(acc_grid)
 surf(sigma_grid, C_grid, acc_grid); % okay fine I suppose that's cooler than matplotlib
-ylabel("Box Parameter Index"); 
-xlabel("Kernel Scale Index"); 
+ylabel("Box Constraint (C)"); 
+xlabel("Kernel Scale (sigma)"); 
 zlabel("Accuracy"); 
 title("Grid Search Surface")
+set(gcf, 'Color', 'w'); 
+
+figure(4); 
+surf(sigma_grid, C_grid, 100 * sv_grid); 
+ylabel("Box Constraint (C)"); 
+xlabel("Kernel Scale (sigma)"); 
+zlabel("Support Vectors (%)"); 
+title("Support Vector Surface")
+set(gcf, 'Color', 'w'); 
 
 % indices of the maximum accuracy value
 [best_C_idx, best_sigma_idx] = find(acc_grid == max(max(acc_grid))); 
@@ -120,50 +145,12 @@ disp(label);
 disp(value); 
 end
 
-function plot_roc(dist, y_test)
-% Define range to vary the threshold over 
-start = min(min(dist)); 
-step = 0.001; 
-stop = max(max(dist));
-
-tpr = zeros(size(start:step:stop)); 
-fpr = zeros(size(start:step:stop)); 
-
-idx = 1; 
-
-for i = start:step:stop
-    pred = zeros(size(dist)); 
-
-    % Make prediction based on threshold 
-    pred(dist >= i) = -1; 
-    pred(dist < i) = 1; 
-
-    % Count true positives, false positives, etc. 
-    tp = sum(sum(pred == y_test & pred == 1)); 
-    fp = sum(sum(pred ~= y_test & pred == 1)); 
-    fn = sum(sum(pred ~= y_test & pred == -1)); 
-    tn = sum(sum(pred == y_test & pred == -1)); 
-
-    % Calculate and store true positive rate and false positive rate 
-    tpr(idx) = tp / (tp + fn); 
-    fpr(idx) = fp / (fp + tn); 
-    idx = idx + 1; 
-end
-
-% Plot the graph 
-figure(2);
-scatter(tpr, fpr);
-xlabel("True Positive Rate"); 
-ylabel("False Positive Rate"); 
-title("ROC Curve")
-xlim([0 1]); % Consistent axis range 
-ylim([0 1]);
-
-end
-
-function analyze_performance(pred, dist, y_test)
+function analyze_performance(pred, sunsetScore, y_test)
     % Plot ROC
-    plot_roc(dist(:, 2), y_test); 
+    figure(2); clf; 
+    [~, ~, auc] = rocCurve(sunsetScore, y_test, 'LST-SVM', 0); 
+    title("ROC Curve"); 
+    disp_stat("AUC: ", auc); 
     
     % Calculate the accuracy 
     acc = sum(sum(pred == y_test)) / size(y_test, 1);  
@@ -275,55 +262,69 @@ function find_example_images(pred, dist, y_test)
         end
     end
 
+    picked = struct( ...
+        'TP_far',  sunset.Files{max_tp_idx}, ...
+        'TP_near', sunset.Files{min_tp_idx}, ...
+        'FN_far',  sunset.Files{min_fn_idx}, ...
+        'FN_near', sunset.Files{max_fn_idx}, ...
+        'FP_far',  nonsunset.Files{max_fp_idx}, ...
+        'FP_near', nonsunset.Files{min_fp_idx}, ...
+        'TN_far',  nonsunset.Files{min_tn_idx}, ...
+        'TN_near', nonsunset.Files{max_tn_idx}); 
+
+    picked_scores = struct( ...
+        'TP_far',  max_tp_dist, ...
+        'TP_near', min_tp_dist, ...
+        'FN_far',  min_fn_dist, ...
+        'FN_near', max_fn_dist, ...
+        'FP_far',  max_fp_dist, ...
+        'FP_near', min_fp_dist, ...
+        'TN_far',  min_tn_dist, ...
+        'TN_near', max_tn_dist); 
+
+    if ~exist('results', 'dir')
+        mkdir('results'); 
+    end
+    save('results/picked8.mat', 'picked', 'picked_scores'); 
+
+    category = fieldnames(picked); 
+    filename = struct2cell(picked); 
+    svm_score = cell2mat(struct2cell(picked_scores)); 
+    disp(table(category, svm_score, filename)); 
+
     figure(3); 
+    set(gcf, 'Color', 'w'); 
 
     subplot(2, 4, 1); 
-    hold on; 
-    title(sprintf("TP Distance = %.2f", max_tp_dist)); 
     imshow(readimage(sunset, max_tp_idx)); 
-    hold off;
+    title(sprintf("TP Distance = %.2f", max_tp_dist)); 
 
     subplot(2, 4, 2); 
-    hold on; 
-    title(sprintf("TP Distance = %.2f", min_tp_dist)); 
     imshow(readimage(sunset, min_tp_idx)); 
-    hold off; 
+    title(sprintf("TP Distance = %.2f", min_tp_dist)); 
 
     subplot(2, 4, 3); 
-    hold on; 
-    title(sprintf("FN Distance = %.2f", min_fn_dist)); 
     imshow(readimage(sunset, min_fn_idx)); 
-    hold off; 
+    title(sprintf("FN Distance = %.2f", min_fn_dist)); 
 
     subplot(2, 4, 4); 
-    hold on; 
-    title(sprintf("FN Distance = %.2f", max_fn_dist)); 
     imshow(readimage(sunset, max_fn_idx));
-    hold off; 
+    title(sprintf("FN Distance = %.2f", max_fn_dist)); 
 
     subplot(2, 4, 5); 
-    hold on; 
-    title(sprintf("FP Distance = %.2f", max_fp_dist)); 
     imshow(readimage(nonsunset, max_fp_idx)); 
-    hold off; 
-
+    title(sprintf("FP Distance = %.2f", max_fp_dist)); 
 
     subplot(2, 4, 6); 
-    hold on; 
-    title(sprintf("FP Distance = %.2f", min_fp_dist)); 
     imshow(readimage(nonsunset, min_fp_idx)); 
-    hold off; 
+    title(sprintf("FP Distance = %.2f", min_fp_dist)); 
 
     subplot(2, 4, 7); 
-    hold on; 
-    title(sprintf("TN Distance = %.2f", max_tn_dist)); 
     imshow(readimage(nonsunset, max_tn_idx)); 
-    hold off;
+    title(sprintf("TN Distance = %.2f", max_tn_dist)); 
 
     subplot(2, 4, 8); 
-    hold on; 
-    title(sprintf("TN Distance = %.2f", min_tn_dist)); 
     imshow(readimage(nonsunset, min_tn_idx)); 
-    hold off; 
+    title(sprintf("TN Distance = %.2f", min_tn_dist)); 
 
 end
